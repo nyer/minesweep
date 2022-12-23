@@ -1,0 +1,410 @@
+<html>
+    <head>
+        <title>mine sweep game</title>
+        <script src="https://code.jquery.com/jquery-1.9.1.min.js"></script>
+        <style>
+
+            #status {
+                margin: auto;
+                text-align: center;
+                font-size: 20px;
+                height: 30px;
+            }
+
+            #settings {
+                text-align: center;
+                margin: auto;
+            }
+
+            #game table{
+                margin: auto;
+            }
+
+            #game td {
+                height: 50;
+                width: 50;
+
+                border-color: black;
+                border-width: 1px;
+                border-style: solid;
+                background-color: white;
+                text-align: center;
+                cursor: default;
+            }
+            
+            .clear {
+                background-color: gray!important;
+            }
+
+            .mine {
+                background-color: red!important;
+            }
+
+        </style>
+        <script>
+
+            $.fn.extend({
+                toggleText: function(a, b){
+                    return this.text(this.text() == b ? a : b);
+                }
+            });
+
+            class BoardCell {
+                
+                countOfSuroundingMine = null;
+                opened = false;
+                marked = false;
+                constructor(row, col, index) {
+                    this.row = row;
+                    this.col = col;
+                    this.index = index;
+                    this.isMine = false;
+                }
+
+                getSurroundingMineCount() {
+                    return this.countOfSuroundingMine;
+                }
+
+            }
+
+            
+            class MineSweep {
+                
+                cells = new Array();
+                cellCount;
+                gameOver = false;
+                cellListeners = new Array();
+                gameListeners = new Array();
+                openedCount = 0;
+                constructor(rowSize, colSize, mineCount) {
+
+                    this.rowSize = rowSize;
+                    this.colSize = colSize;
+                    this.mineCount = mineCount;
+                    this.cellCount = rowSize * rowSize;
+
+                    this.init();
+                }
+
+                getRowSize() {
+                    return this.rowSize;
+                }
+
+                getColSize() {
+                    return this.colSize;
+                }
+
+                getMineCount() {
+                    return this.mineCount;
+                }
+
+                toggleMark(row, col) {
+
+                    var cell = this.cells[row][col];
+
+                    if (cell.opened == false) {
+                        cell.marked = !cell.marked;
+                        this.notifyCellMarkToggle(cell);
+                    }
+                }
+
+                open(row, col) {
+                    var cell = this.cells[row][col];
+                    if (cell.marked == false && cell.opened == false) {
+                        cell.opened = true;
+                        this.openedCount ++;
+
+                        this.notifyCellOpened(cell);
+                        if (cell.isMine) {
+                            this.gameOver = true;
+                            this.notifyGameOver();
+                        } else {
+                            this.checkGameStatus();
+                        }
+                    }
+                }
+
+                checkGameStatus() {
+
+                    if (this.openedCount + this.mineCount == this.cellCount) {
+
+                        this.notifyGameClear();
+                    }
+                }
+
+                notifyCellMarkToggle(cell) {
+
+                    this.notifyCellEvent("toggleMark", cell);
+                }
+
+                notifyCellOpened(cell) {
+
+                    this.notifyCellEvent("open", cell);
+                }
+
+                notifyCellEvent(event, cell) {
+
+                    this.cellListeners.forEach(function(e) {
+                        e(event, cell);
+                    })
+                }
+
+                addCellListener(cellListener) {
+
+                    this.cellListeners.push(cellListener);
+                }
+
+                notifyGameOver() {
+                    this.notifyGameEvent("over");
+                }
+
+                notifyGameClear() {
+                    this.notifyGameEvent("clear");
+                }
+
+                notifyGameEvent(event) {
+
+                    this.gameListeners.forEach(function(e) {
+                        e(event);
+                    })
+                }
+
+
+                addGameListener(gameListener) {
+                    this.gameListeners.push(gameListener);
+                }
+
+                init() {
+
+                    // init cell array
+                    var index = 0;
+                    for (i = 0; i < this.rowSize; i ++) {
+                        var row = new Array();
+                        this.cells[i] = row;
+                        for (j = 0; j < this.colSize; j ++) {
+                            row[j] = new BoardCell(i, j, index ++);
+                        }
+                    }
+
+                    // generate mine map
+                    var mineIndexSet = new Set();
+                    while (true) {
+
+                        var randomMineIndex = Math.floor(Math.random() *  this.cellCount);
+                        if (!mineIndexSet.has(randomMineIndex)) {
+                            mineIndexSet.add(randomMineIndex);
+                        }
+
+                        if (mineIndexSet.size == this.mineCount) {
+                            break;
+                        }
+                    }
+
+                    // set mine
+                    for (var i = 0; i < this.rowSize; i ++) {
+
+                        for (var j = 0; j < this.colSize; j ++) {
+                            var cell = this.cells[i][j];
+                            if (mineIndexSet.has(cell.index)) {
+                                cell.isMine = true;
+                            }
+                        }
+                    }
+
+                    // init infer num
+                    for (var i = 0; i < this.rowSize; i ++) {
+
+                        for (var j = 0; j < this.colSize; j ++) {
+                            var cell = this.cells[i][j];
+                            if (!cell.isMine) {
+                                
+                                var countOfSuroundingMine = 0;
+                                for (var rr = i - 1; rr <= i + 1; rr ++) {
+                                    for (var jj = j -1; jj <= j + 1; jj ++) {
+
+                                        if (rr >= 0 && rr < this.rowSize && jj >= 0 && jj < this.colSize 
+                                        && !(rr == i && jj == j) && this.cells[rr][jj].isMine) {
+                                            countOfSuroundingMine ++;
+                                        }
+                                    }
+                                }
+
+                                cell.countOfSuroundingMine = countOfSuroundingMine;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            class TableCell {
+
+                opened = false;
+                row = null;
+                col = null;
+                ele = null;
+                constructor(ele, row, col) {
+
+                    this.ele = ele;
+                    this.row = row;
+                    this.col = col;
+                }
+            }
+
+            $(function () {
+
+                var rowsEle = $('#settings input[name="rows"]');
+                var colsEle = $('#settings input[name="cols"]');
+                var mineCountEle = $('#settings input[name="mineCount"]');
+
+                var totalEle = $('#status #total');
+                var remainEle = $('#status #remain');
+                var faceEle = $('#status #face');
+                
+                var tbody = $('#game tbody');
+                var resetEle = $('#reset');
+
+                resetEle.click(function() {
+                   
+                    var rows = parseInt(rowsEle.val());
+                    var cols = parseInt(colsEle.val());
+                    var mineCount = parseInt(mineCountEle.val());
+                    var remainCount = mineCount;
+
+                    // mineSweep
+                    mineSweep = new MineSweep(rows, cols, mineCount);
+
+
+                    // status
+                    totalEle.text(mineSweep.getMineCount());
+                    remainEle.text(mineSweep.getMineCount());
+                    faceEle.text("🙂");
+
+                    // board
+                    tbody.children().remove();
+                    var cellTable = new Array();
+                    for (i = 0, rowSize = mineSweep.getRowSize(); i < rowSize; i ++) {
+                        cellTable[i] = new Array();
+                        for (j = 0, colSize = mineSweep.getColSize(); j < colSize; j ++) {
+                            cellTable[i][j] = null;
+                        }
+                    }
+
+                    // game listener
+                    mineSweep.addGameListener(function (event) {
+
+                        switch(event) {
+                            case "over":
+                                faceEle.text("🙁");
+                                break;
+                            case "clear":
+                                faceEle.text("😃");
+                        }
+                    });
+
+                    // cell listener
+                    mineSweep.addCellListener(function(event, cell) {
+                        var tableCell = cellTable[cell.row][cell.col];
+                        tableCell.opened = true;
+                        var tableCellEle = tableCell.ele;
+                        switch(event) {
+                            case "open":
+                                if (cell.isMine) {
+                                    tableCellEle.text('M');
+                                    tableCellEle.addClass('mine');
+                                } else {
+
+                                    if (cell.getSurroundingMineCount() > 0) {
+                                        tableCellEle.text(cell.getSurroundingMineCount());
+                                    } else {
+                                        tableCellEle.addClass('clear')
+                                        var row = cell.row;
+                                        var col = cell.col;
+                                        for (var rr = row - 1; rr <= row + 1; rr ++) {
+                                            for (var cc = col -1; cc <= col + 1; cc ++) {
+
+                                                if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) {
+                                                    if (!cellTable[rr][cc].opened) {
+                                                        mineSweep.open(rr, cc);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                break;
+                            case "toggleMark":
+                                tableCellEle.toggleText("🚩","");
+                                if (cell.marked) {
+                                    remainCount --;
+                                } else {
+                                    remainCount ++
+                                }
+                                remainEle.text(remainCount);
+                                break;
+                        }
+                    });
+
+                    for (i = 0, rowSize = mineSweep.getRowSize(); i < rowSize; i ++) {
+
+                        var tr = $('<tr></tr>');
+                        tbody.append(tr);
+                        for (j = 0, colSize = mineSweep.getColSize(); j < cols; j ++) {
+
+                            var td = $('<td><span></span></td>');
+                            td.attr('row', i);
+                            td.attr('col', j);
+                            tr.append(td);
+
+                            cellTable[i][j] = new TableCell(td, i, j);
+                            td.click(function() {
+                                if (mineSweep.gameOver) {
+                                    return;
+                                }
+
+                                var row = $(this).attr('row');
+                                var col = $(this).attr('col');
+                                mineSweep.open(row, col);
+                            });
+                            td.contextmenu(function(e) {
+                                if (mineSweep.gameOver) {
+                                    return;
+                                }
+
+                                var row = $(this).attr('row');
+                                var col = $(this).attr('col');
+                                mineSweep.toggleMark(row, col);
+                                e.preventDefault();
+                            });
+                        }
+                    }
+                });
+
+                // settings
+                rowsEle.val(8);
+                colsEle.val(8);
+                mineCountEle.val(10);
+                resetEle.click();
+            });
+        </script>
+    </head>
+    <body>
+        <div id="main">
+            <div id="status">
+                Total: <span id="total"></span>  <span id="face">☺</span>   Remain: <span id="remain"></span>
+            </div>
+            <div id="game">
+                <table>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+            <div id="settings">
+                rows: <input type="text" name="rows" size="4" required/>
+                cols: <input type="text" name="cols" size="4" required/>
+                mineCount: <input type="text" name="mineCount" size="3" required/>
+                <button id="reset">reset</button>
+            </div>
+        </div>
+    </body>
+
+</html>
